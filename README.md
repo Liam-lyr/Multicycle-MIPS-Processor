@@ -12,7 +12,7 @@
 
 项目源文件见 `./multicycleIO`。
 
-本 README 对原理未作过多解释，请参考「`./references/textbook.pdf`」及「`./references/slide.pptx`」
+本 README 对原理未作过多解释，请参考「`./references/textbook.pdf`」及「`./references/slide.pptx`」。
 
 
 
