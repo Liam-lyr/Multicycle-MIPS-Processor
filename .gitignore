@@ -1,11 +1,11 @@
-/multicycleIO/.Xil
+./multicycleIO/.Xil
 
-/multicycleIO/multicycle.cache
+./multicycleIO/multicycle.cache
 
-/multicycleIO/multicycle.hw
+./multicycleIO/multicycle.hw
 
-/multicycleIO/multicycle.ip_user_files
+./multicycleIO/multicycle.ip_user_files
 
-/multicycleIO/multicycle.runs
+./multicycleIO/multicycle.runs
 
-/multicycleIO/multicycle.sim
+./multicycleIO/multicycle.sim
