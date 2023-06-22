@@ -1,7 +1,0 @@
-Running: xsim.dir/textbench_task2_behav/xsimk.exe -simmode gui -wdb textbench_task2_behav.wdb -simrunnum 0 -socket 55058
-Design successfully loaded
-Design Loading Memory Usage: 6820 KB (Peak: 6820 KB)
-Design Loading CPU Usage: 30 ms
-Simulation completed
-Simulation Memory Usage: 7612 KB (Peak: 7612 KB)
-Simulation CPU Usage: 30 ms
