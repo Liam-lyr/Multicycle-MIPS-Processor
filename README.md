@@ -6,9 +6,11 @@
 
 ## 1 概述
 
-本 MIPS 多周期处理器模拟器支持以下 MIPS 指令。支持通过 simulation 测试处理器行为，已在 Vivado 2019.2 中完成测试。
+本项目支持以下 MIPS 指令。支持通过 simulation 测试处理器行为，已在 Vivado 2019.2 中完成测试。
 
 `lw, sw, add, sub, and, or, slt, beq, addi, subi, j, bne, andi, ori`
+
+项目源文件见 `./multicycleIO`。
 
 本 README 对原理未作过多解释，请参考「`./references/textbook.pdf`」及「`./references/slide.pptx`」
 
@@ -20,16 +22,16 @@
 
 本实验按照「`./references/slide.pptx`」进行设计，并结合部分「`./references/textbook.pdf`」中的设计。部件与控制信号与后者中的设计有以下几点不同：
 
-1. **加入了寄存器`A`、`B`、`MDR`。** 在多周期处理器中，这三个寄存器加入与否都可行。若加入，在各自的第n个周期时数据源传来数据并在本周期内将数据稳定，同时打开`A`/`B`/`MDR`写信号，则这三个寄存器在各自的n+1个周期的开始被写入并被`MUX`选通参与`ALU`计算（`MDR`不参与），在各自的第n+2个周期被写入下一个寄存器。若不加入，在各自的第n个周期数据源同样传来数据并在本周期内将数据稳定，在各自的第n+1个周期被`MUX`选通并参与`ALU`计算（`MDR`不参与），在各自的第n+2个周期被写入下一个寄存器。综上，是一样的。*但是，在之后的流水线处理器中就是必须要加入的了。*
+1. **加入了寄存器`A`、`B`、`MDR`。**在多周期处理器中，这三个寄存器加入与否都可行。若加入，在各自的第n个周期时数据源传来数据并在本周期内将数据稳定，同时打开`A`/`B`/`MDR`写信号，则这三个寄存器在各自的n+1个周期的开始被写入并被`MUX`选通参与`ALU`计算（`MDR`不参与），在各自的第n+2个周期被写入下一个寄存器。若不加入，在各自的第n个周期数据源同样传来数据并在本周期内将数据稳定，在各自的第n+1个周期被`MUX`选通并参与`ALU`计算（`MDR`不参与），在各自的第n+2个周期被写入下一个寄存器。综上，是一样的。*但是，在之后的流水线处理器中就是必须要加入的了。*
 2. **去除IRFetch/ID周期中暂存投机计算结果的寄存器Target的写使能`BrWr`；`ALU`计算结果回写的数据源（`ALUOut`）更改为来自`Target`寄存器之后，而不是直接来自`ALU`输出端。**
    - 对于`BrWr`：实际上，加入与否都可行，本次实验按照「`./references/slide.pptx`」中对于本部分的设计，去除了`BrWr`信号，每次ALU计算结果都会被写入`Target`，但只需要在指令并非跳转指令时不选通此路径即可（即，`PCSrc`不为01）。
    - 对于后者：这带来的好处是，进行R-Type和I指令运算后，第四周期不需要保持第三周期中的所有控制信号了，第三周期也无需置`RegDst`，因为运算结果也会保存在`Target`中，直接取出即可。能够减少状态数。（此点将在[控制单元](###2.1.3 控制单元)中详细描述）。
-3. **分支使能新增针对`bne`指令的控制信号。** 在下方整体结构中，`PCEn`处新增一条 $BranchBne\space\cdot\space \overline{zero}$ 通路。在`bne`指令的第三周期（BneExec周期）时`BranchBne = 1`。
+3. **分支使能新增针对`bne`指令的控制信号。**在下方整体结构中，`PCEn`处新增一条 $BranchBne\space\cdot\space \overline{zero}$ 通路。在`bne`指令的第三周期（BneExec周期）时`BranchBne = 1`。
 
 整体结构如下，黑色部分为[数据通路](###2.1.2 数据通路)，蓝色部分为[控制单元](###2.1.3 控制单元)。详细设计将在后续介绍。下图中，红色部分为相较于「`./references/slide.pptx`」的更改内容，解释如下：
 
-1. **新增`ExtOP`控制信号。** 1时符号位拓展，0时零拓展。
-2. **新增`BranchBne`控制信号通路。** 如上所述，`PCEn`处新增一条 $BranchBne\space\cdot\space \overline{zero}$ 通路。在`bne`指令的第三周期（BneExec周期）时`BranchBne = 1`。
+1. **新增`ExtOP`控制信号。**1时符号位拓展，0时零拓展。
+2. **新增`BranchBne`控制信号通路。**如上所述，`PCEn`处新增一条 $BranchBne\space\cdot\space \overline{zero}$ 通路。在`bne`指令的第三周期（BneExec周期）时`BranchBne = 1`。
 
 ![overview](./assets/overview.png)
 
@@ -37,7 +39,7 @@
 
 ![RTL](./assets/RTL.png)
 
-**顶层模块`Top`：** 包含存储器`mem`、处理器核心`mips`。输入为时钟信号、重置信号。
+**顶层模块`Top`：**包含存储器`mem`、处理器核心`mips`。输入为时钟信号、重置信号。
 
 ```systemverilog
 `timescale 1ns / 1ps
@@ -53,7 +55,7 @@ module top(input logic clk,reset,
 endmodule
 ```
 
-**处理器核心`mips`：** 包含控制模块`controller`、数据通路`datapath`，实现了对指令的读取翻译、数据传输、内存控制等功能。
+**处理器核心`mips`：**包含控制模块`controller`、数据通路`datapath`，实现了对指令的读取翻译、数据传输、内存控制等功能。
 
 ```systemverilog
 module mips(input logic clk,
@@ -81,7 +83,7 @@ module mips(input logic clk,
 endmodule
 ```
 
-**存储器`mem`：** 本次实验中，将指令存储器`imem`和数据存储器`dmem`合并，如下。
+**存储器`mem`：**本次实验中，将指令存储器`imem`和数据存储器`dmem`合并，如下。
 
 ```systemverilog
 `timescale 1ns / 1ps
@@ -134,7 +136,7 @@ endmodule
 | alu (ALU)                         | alu.sv                        | N (相比于「单周期」，有改动)   |
 | falu (Target)                     | flopr.sv                      | Y                              |
 
-**带使能端的寄存器`flopenr.sv`：** 相比于`flopr.sv`，增加使能信号`en`。
+**带使能端的寄存器`flopenr.sv`：**相比于`flopr.sv`，增加使能信号`en`。
 
 ```systemverilog
 module flopenr #(parameter WIDTH = 8)
@@ -166,7 +168,7 @@ module mux4#(parameter WIDTH=8)
 endmodule
 ```
 
-**寄存器文件`regfile.sv`：** 其中，`we3`为寄存器写使能端口（将接收控制单元发出的`RegWrite`信号），`A1`, `A2`为源寄存器端口，`A2`为目的寄存器端口，`WD3`为写入数据端口，`RD1`, `RD2`为源寄存器输出端口。代码和示意图如下。
+**寄存器文件`regfile.sv`：**其中，`we3`为寄存器写使能端口（将接收控制单元发出的`RegWrite`信号），`A1`, `A2`为源寄存器端口，`A2`为目的寄存器端口，`WD3`为写入数据端口，`RD1`, `RD2`为源寄存器输出端口。代码和示意图如下。
 
 <img src="./assets/regfile.png" alt="regfile" style="zoom:25%;" />
 
@@ -187,7 +189,7 @@ module regfile(input  logic         clk,
 endmodule
 ```
 
-**ALU`alu.sv`：** `alucontrol`为控制端口，传入的信号将决定执行的操作，另外，输出结果在`out`，运算结果为0时`zero`被置1。
+**ALU`alu.sv`：**`alucontrol`为控制端口，传入的信号将决定执行的操作，另外，输出结果在`out`，运算结果为0时`zero`被置1。
 
 ```systemverilog
 `timescale 1ns / 1ps
@@ -220,32 +222,18 @@ endmodule
 详细设计如下。下图中，蓝色部分为相较于「`./references/slide.pptx`」的更改内容，几个值得注意的点：
 
 1. **R-Type的第三周期（RExec周期）中无需使`RegDst = 1`。**
-
    - 此处和「`./references/textbook.pdf`」上的描述有区别，因为在本实验的设计中，去除了对`Target`的写使能信号`BrWr`，任何`ALU`计算结果都会被暂存到`Target`中，因此在第四周期中可从中直接取出。
    - 而「`./references/textbook.pdf`」`中，R-Type第三周期并未将`ALU`结果暂存于任何地方，因此必须置`RegDest = 1`，以免在R-Type第四周期（RFinish周期）开始时目的寄存器信号未稳定引起竞争。
-
 2. **R-Type的第四周期（RFinish周期）中不需要保持RExec周期中信号不变。**
-
    - 理由同上。
    - 而「`./references/textbook.pdf`」中，R-Type第三周期并未将`ALU`结果暂存于任何地方，因此必须继续保持RExec周期中各个控制信号不变，以免RFinish周期开始时数据源过早撤去造成信号建立时间不足，导致写入失败。
+3. **部分I指令（`andi`, `ori`, `addi`）的第三、第四周期的情况同上**。理由同1、2。
+4. **`lw`/`sw`第三周期无需使`IorD = 1`，第四周期无需保持四三周期中信号不变。特别地，`lw`第四周期无需使`MemToReg = 1`, `RegDst = 0`，第五周期无需保持第三、第四周期信号不变。**理由同1、2。特别地，`lw`第四周期无需使`MemToReg = 1`, `RegDst = 0`的原因是加入了`MDR`寄存器，与`Target`一样能起到暂存数据的作用，因此同1、2。
+5. **部分状态中需要增加`ExtOP`信号。**如下图，如前所述，1时符号位拓展，0时零拓展。
 
-3. **部分I指令（`andi`, `ori`, `addi`）的第三、第四周期的情况同上。**
+![FSM](./assets/FSM.png)
 
-   理由同1、2。
-
-4. **`lw`/`sw`第三周期无需使`IorD = 1`，第四周期无需保持四三周期中信号不变。特别地，`lw`第四周期无需使`MemToReg = 1`, `RegDst = 0`，第五周期无需保持第三、第四周期信号不变。** 
-
-   理由同1、2。
-
-   特别地，`lw`第四周期无需使`MemToReg = 1`, `RegDst = 0`的原因是加入了`MDR`寄存器，与`Target`一样能起到暂存数据的作用，因此同1、2。
-
-5. **部分状态中需要增加`ExtOP`信号。**
-
-   如下图，如前所述，1时符号位拓展，0时零拓展。
-   
-   ![FSM](./assets/FSM.png)
-
-**控制单元`control`：** 包含`Main Controller`和`ALU Decoder`。前者对指令进行译码，实现了除`ALUControl`信号以外的FSM。后者用于产生`ALUControl`信号，控制`ALU`的运算操作，详细见后。
+**控制单元`control`：**包含`Main Controller`和`ALU Decoder`。前者对指令进行译码，实现了除`ALUControl`信号以外的FSM。后者用于产生`ALUControl`信号，控制`ALU`的运算操作，详细见后。
 
 ```systemverilog
 module controller(input  logic      clk,reset,
@@ -271,7 +259,7 @@ module controller(input  logic      clk,reset,
 endmodule
 ```
 
-**ALU Decoder`aludec.sv`：** 用于产生`ALUControl`信号，控制`ALU`的运算操作。
+**ALU Decoder`aludec.sv`：**用于产生`ALUControl`信号，控制`ALU`的运算操作。
 
 - 指令不为R-Type时，根据上述FSM图可知本次实验中只需要`ALUControl = Add`、`ALUControl = Sub`、`ALUControl = And`、`ALUControl = Ori`。
 - 指令为R-Type时，根据R-Type指令的`Funct`部分决定`ALUControl`信号。
@@ -301,7 +289,7 @@ module aludec(input  logic [5:0] funct,
 endmodule
 ```
 
-**Main Decoder`maindec.sv`：** 对指令进行译码，实现了除`ALUControl`信号以外的FSM。根据前述FSM可知是Moore状态机，本实验中采用硬连线设计来实现任一状态下控制信号的指定，以下将分几段介绍：
+**Main Decoder`maindec.sv`：**对指令进行译码，实现了除`ALUControl`信号以外的FSM。根据前述FSM可知是Moore状态机，本实验中采用硬连线设计来实现任一状态下控制信号的指定，以下将分几段介绍：
 
 - **定义FSM图中的15个状态S0~S14：**
 
@@ -339,7 +327,7 @@ endmodule
   localparam BNE      =6'b000101;
   ```
 
-- **Moore状态机状态转换（时序逻辑）：** 每周期进行一次状态转换，上升沿触发。
+- **Moore状态机状态转换（时序逻辑）：**每周期进行一次状态转换，上升沿触发。
 
   ```systemverilog
   logic [3:0] state,nextstate;
@@ -351,7 +339,7 @@ endmodule
       else      state <= nextstate;
   ```
 
-- **Moore状态机次态指定（组合逻辑）：** 描述了前述FSM图。
+- **Moore状态机次态指定（组合逻辑）：**描述了前述FSM图。
 
   ```systemverilog
   //next state logic
@@ -391,7 +379,7 @@ endmodule
       endcase
   ```
 
-- **采用硬连线设计实现的控制信号发生器：** 指定各状态下控制信号的情况，根据FSM图填写。为避免错误，在任一状态下的可取任意值`x`的控制信号（下图中每个状态中未标出的信号）默认全部取0，但`ExtOP`默认1。
+- **采用硬连线设计实现的控制信号发生器：**指定各状态下控制信号的情况，根据FSM图填写。为避免错误，在任一状态下的可取任意值`x`的控制信号（下图中每个状态中未标出的信号）默认全部取0，但`ExtOP`默认1。
 
   ```systemverilog
   assign {pcwrite,memwrite,irwrite,regwrite,
